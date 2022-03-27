@@ -5,12 +5,11 @@ namespace Portals;
 
 public class Portal : CosmeticSprite
 {
-    public Portal(Player player, int id, IntVector2 tilePos)
+    public Portal(int id, Room room, IntVector2 tilePos)
     {
-        this.player = player;
-        room = player.room;
+        this.room = room;
         portalID = id;
-        this.tilePos = tilePos;
+        _tilePos = tilePos;
     }
     
     public override void InitiateSprites(RoomCamera.SpriteLeaser sLeaser, RoomCamera rCam)
@@ -31,8 +30,8 @@ public class Portal : CosmeticSprite
         
         sprite.scaleX = 0.5f;
         sprite.scaleY = 3f;
-        sprite.SetPosition(rCam.room.MiddleOfTile(tilePos.x, tilePos.y) - camPos);
-        sprite.rotation = dir.ToVector2().GetAngle();
+        sprite.SetPosition(rCam.room.MiddleOfTile(_tilePos.x, _tilePos.y) - _dir.ToVector2() * 5f - camPos);
+        sprite.rotation = _dir.ToVector2().GetAngle();
 
         base.DrawSprites(sLeaser, rCam, timeStacker, camPos);
     }
@@ -47,11 +46,27 @@ public class Portal : CosmeticSprite
 
         base.AddToContainer(sLeaser, rCam, newContatiner);
     }
-    
 
-    public readonly Player player;
+    public void SetPos(IntVector2 tilePos, IntVector2 dir)
+    {
+        _tilePos = tilePos;
+        _dir = dir;
+
+        IntVector2 perp = Custom.PerpIntVec(dir);
+
+        PortalTiles = new[]
+        {
+            tilePos + perp,
+            tilePos,
+            tilePos - perp
+        };
+    }
+
+
     public readonly int portalID;
-    public IntVector2 tilePos;
-    public IntVector2 dir;
+    private IntVector2 _tilePos;
+    private IntVector2 _dir;
+    
+    public IntVector2[] PortalTiles { get; private set; }
 
 }

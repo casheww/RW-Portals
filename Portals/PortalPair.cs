@@ -7,34 +7,32 @@ public class PortalPair
     public PortalPair(Player player)
     {
         this.player = player;
-
-        a = new Portal(player, 0, new IntVector2(-1, -1));
-        b = new Portal(player, 1, new IntVector2(-1, -1));
+        _portals = new []
+        {
+            new Portal(0, player.room, new IntVector2(-1, -1)),
+            new Portal(1, player.room, new IntVector2(-1, -1))
+        };
     }
 
     public void SetPortal(int id, Room room)
     {
-        IntVector2? pos = GetPosForPortal(player, out IntVector2 dir);
-        Portal portal = GetPortal(id);
-
-        if (pos == null)
-        {
-            portal.RemoveFromRoom();
+        if (!TryShootPortal(player, out IntVector2 tilePos, out IntVector2 dir))
             return;
-        }
+        
+        Portal portal = _portals[id];
         
         portal.RemoveFromRoom();
         room.AddObject(portal);
-        portal.tilePos = pos.Value;
-        portal.dir = dir;
-        
-        PortalPlugin.Log.LogInfo($"set portal for {player.playerState.playerNumber}:{id} at {pos.Value}");
+        portal.SetPos(tilePos, dir);
+
+        PortalPlugin.Log.LogInfo($"set portal for {player.playerState.playerNumber}:{id} at {tilePos}");
     }
     
-    private static IntVector2? GetPosForPortal(Player player, out IntVector2 dir)
+    private static bool TryShootPortal(Player player, out IntVector2 pos, out IntVector2 dirIntoPortal)
     {
-        IntVector2 pos = player.room.GetTilePosition(player.firstChunk.pos);
-        dir = GetThrowDirection(player);
+        pos = player.room.GetTilePosition(player.firstChunk.pos);
+        IntVector2 dir = GetThrowDirection(player);
+        //IntVector2 dirPerp = Custom.PerpIntVec(dir);
 
         while (player.room.IsPositionInsideBoundries(pos))
         {
@@ -42,33 +40,46 @@ public class PortalPair
 
             if (player.room.GetTile(pos).Solid)
             {
-                return pos;
+                dirIntoPortal = dir;
+                return true;
             }
+
+            /*
+            player.room.IdentifySlope(pos) == 
+
+            if (player.room.GetTile(pos).Solid &&
+                player.room.GetTile(pos + dirPerp).Solid &&
+                player.room.GetTile(pos - dirPerp).Solid &&
+                !player.room.GetTile(pos + dirPerp - dir).Solid &&
+                !player.room.GetTile(pos - dirPerp - dir).Solid)
+            {
+                dirIntoPortal = dir;
+            }
+            else*/
         }
 
-        return null;
+        dirIntoPortal = default;
+        return false;
     }
 
     private static IntVector2 GetThrowDirection(Player player)
     {
-        IntVector2 dir = player.input[0].IntVec;
-        if (dir.x != 0 || dir.y != 0)
-            return dir;
+        IntVector2 throwDir = player.input[0].IntVec;
+        if (throwDir.x != 0 || throwDir.y != 0)
+            return throwDir;
         
-        dir = new IntVector2(player.ThrowDirection, 0);
+        throwDir = new IntVector2(player.ThrowDirection, 0);
         if (player.animation == Player.AnimationIndex.Flip && player.input[0].y < 0 && player.input[0].x == 0)
         {
-            dir = new IntVector2(0, -1);
+            throwDir = new IntVector2(0, -1);
         }
 
-        return dir;
+        return throwDir;
     }
-    
-    private Portal GetPortal(int id) => id == 0 ? a : b;
-
 
     public readonly Player player;
-    private readonly Portal a;
-    private readonly Portal b;
+    private readonly Portal[] _portals;
 
+    public Portal A => _portals[0];
+    public Portal B => _portals[1];
 }

@@ -10,6 +10,8 @@
     <Reference Include="$(References)/UnityEngine.dll" />
     <Reference Include="$(References)/Assembly-CSharp.dll" />
     <Reference Include="$(References)/HOOKS-Assembly-CSharp.dll" />
+    <Reference Include="$(References)/MonoMod.Utils.dll" />
+    <Reference Include="$(References)/Mono.Cecil.dll" />
   </ItemGroup>
 
 </Project>
