@@ -35,6 +35,26 @@ public static class Hooks
     {
         orig(self, eu);
         PortalPlugin.PortalDict[self].Update();
+
+        foreach (BodyChunk bc in self.bodyChunks)
+        {
+            foreach (PortalPair pp in PortalPlugin.PortalDict.Values)
+            {
+                foreach (IntVector2 tile in pp.A.portalTileCoords)
+                    if (tile == bc?.owner?.room?.GetTilePosition(bc.pos))
+                    { 
+                        MovePhysicalObject(self, pp.B.TilePos);
+                        return;
+                    }
+
+                foreach (IntVector2 tile in pp.B.portalTileCoords)
+                    if (tile == bc?.owner?.room?.GetTilePosition(bc.pos))
+                    {
+                        MovePhysicalObject(self, pp.A.TilePos);
+                        return;
+                    }
+            }
+        }
     }
 
     private static void BodyChunk_CheckHorizontalCollision(ILContext il)
@@ -199,6 +219,11 @@ public static class Hooks
     {
         foreach (BodyChunk bc in obj.bodyChunks)
             bc.HardSetPosition(tilePos.ToVector2() * 20f);
+        
+        if (obj is Creature creature)
+            foreach (Creature.Grasp grasp in creature.grasps)
+                if (grasp != null)
+                    MovePhysicalObject(grasp.grabbed, tilePos);
     }
 
 }

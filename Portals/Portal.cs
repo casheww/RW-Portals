@@ -27,12 +27,7 @@ public class Portal : CosmeticSprite
 
     public void SetPos(Room newRoom, IntVector2 tilePos, IntVector2 dir)
     {
-        if (room != null)
-        {
-            RestoreTiles();
-            room.RemoveObject(this);
-        }
-
+        ClearFromRoom();
         newRoom.AddObject(this);
         
         TilePos = tilePos;
