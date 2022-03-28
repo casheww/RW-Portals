@@ -1,4 +1,5 @@
 ﻿using RWCustom;
+using UnityEngine;
 
 namespace Portals;
 
@@ -7,23 +8,37 @@ public class PortalPair
     public PortalPair(Player player)
     {
         this.player = player;
+        playerLastRoom = player.room;
         _portals = new []
         {
-            new Portal(0, player.room, new IntVector2(-1, -1)),
-            new Portal(1, player.room, new IntVector2(-1, -1))
+            new Portal(0),
+            new Portal(1)
         };
     }
 
-    public void SetPortal(int id, Room room)
+    public void Update()
+    {
+        if (player.room == null) return;
+        
+        if (player.room != playerLastRoom)
+        {
+            A.ClearFromRoom();
+            B.ClearFromRoom();
+            playerLastRoom = player.room;
+        }
+        
+        if (Input.GetKeyDown(KeyCode.D))
+            SetPortal(0);
+        else if (Input.GetKeyDown(KeyCode.F))
+            SetPortal(1);
+    }
+    
+    public void SetPortal(int id)
     {
         if (!TryShootPortal(player, out IntVector2 tilePos, out IntVector2 dir))
             return;
         
-        Portal portal = _portals[id];
-        
-        portal.RemoveFromRoom();
-        room.AddObject(portal);
-        portal.SetPos(tilePos, dir);
+        _portals[id].SetPos(player.room, tilePos, dir);
 
         PortalPlugin.Log.LogInfo($"set portal for {player.playerState.playerNumber}:{id} at {tilePos}");
     }
@@ -78,6 +93,7 @@ public class PortalPair
     }
 
     public readonly Player player;
+    private Room playerLastRoom;
     private readonly Portal[] _portals;
 
     public Portal A => _portals[0];

@@ -5,12 +5,75 @@ namespace Portals;
 
 public class Portal : CosmeticSprite
 {
-    public Portal(int id, Room room, IntVector2 tilePos)
+    public Portal(int id)
     {
-        this.room = room;
         portalID = id;
-        _tilePos = tilePos;
+        hide = true;
+        portalTileCoords = new IntVector2[portalHeight];
+        _displacedTiles = new Room.Tile[portalHeight];
+
+        TilePos = new IntVector2(-1, -1);
+        Dir = new IntVector2(0, 1);
     }
+
+    public void ClearFromRoom()
+    {
+        if (room == null) return;
+        
+        RestoreTiles();
+        room.RemoveObject(this);
+        hide = true;
+    }
+
+    public void SetPos(Room newRoom, IntVector2 tilePos, IntVector2 dir)
+    {
+        if (room != null)
+        {
+            RestoreTiles();
+            room.RemoveObject(this);
+        }
+
+        newRoom.AddObject(this);
+        
+        TilePos = tilePos;
+        Dir = dir;
+
+        IntVector2 perp = Custom.PerpIntVec(dir);
+        portalTileCoords[0] = tilePos + perp;
+        portalTileCoords[1] = tilePos;
+        portalTileCoords[2] = tilePos - perp;
+
+        DisplaceTiles();
+
+        hide = false;
+    }
+    
+    private void RestoreTiles()
+    {
+        for (int i = 0; i < portalHeight; i++)
+        {
+            IntVector2 coords = portalTileCoords[i];
+            
+            PortalPlugin.Log.LogInfo(room == null);
+            PortalPlugin.Log.LogInfo(room.Tiles == null);
+
+            room.Tiles[coords.x, coords.y] = _displacedTiles[i];
+        }
+    }
+
+    private void DisplaceTiles()
+    {
+        for (int i = 0; i < portalHeight; i++)
+        {
+            IntVector2 coords = portalTileCoords[i];
+            
+            _displacedTiles[i] = room.GetTile(coords);
+            room.Tiles[coords.x, coords.y] =
+                new Room.Tile(coords.x, coords.y, Room.Tile.TerrainType.Air, false, false, false, 0, 0);
+        }
+    }
+    
+    #region drawable
     
     public override void InitiateSprites(RoomCamera.SpriteLeaser sLeaser, RoomCamera rCam)
     {
@@ -25,13 +88,15 @@ public class Portal : CosmeticSprite
 
     public override void DrawSprites(RoomCamera.SpriteLeaser sLeaser, RoomCamera rCam, float timeStacker, Vector2 camPos)
     {
+        if (hide) return;
+        
         FSprite sprite = sLeaser.sprites[0];
         sprite.color = portalID == 0 ? new Color(0.7f, 0.2f, 0.2f) : new Color(0.2f, 0.6f, 0.2f);
         
         sprite.scaleX = 0.5f;
         sprite.scaleY = 3f;
-        sprite.SetPosition(rCam.room.MiddleOfTile(_tilePos.x, _tilePos.y) - _dir.ToVector2() * 5f - camPos);
-        sprite.rotation = _dir.ToVector2().GetAngle();
+        sprite.SetPosition(rCam.room.MiddleOfTile(TilePos.x, TilePos.y) - Dir.ToVector2() * 5f - camPos);
+        sprite.rotation = Dir.ToVector2().GetAngle();
 
         base.DrawSprites(sLeaser, rCam, timeStacker, camPos);
     }
@@ -46,27 +111,17 @@ public class Portal : CosmeticSprite
 
         base.AddToContainer(sLeaser, rCam, newContatiner);
     }
-
-    public void SetPos(IntVector2 tilePos, IntVector2 dir)
-    {
-        _tilePos = tilePos;
-        _dir = dir;
-
-        IntVector2 perp = Custom.PerpIntVec(dir);
-
-        PortalTiles = new[]
-        {
-            tilePos + perp,
-            tilePos,
-            tilePos - perp
-        };
-    }
+    
+    #endregion drawable
 
 
     public readonly int portalID;
-    private IntVector2 _tilePos;
-    private IntVector2 _dir;
-    
-    public IntVector2[] PortalTiles { get; private set; }
+    public bool hide;
+    public IntVector2 TilePos { get; private set; }
+    public IntVector2 Dir { get; private set; }
+
+    private const int portalHeight = 3;
+    public readonly IntVector2[] portalTileCoords;
+    private readonly Room.Tile[] _displacedTiles;
 
 }

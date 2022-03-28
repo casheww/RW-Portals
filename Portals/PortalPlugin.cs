@@ -14,14 +14,6 @@ public sealed class PortalPlugin : BaseUnityPlugin
     
     public void OnEnable() => Hooks.Hook();
     public void OnDisable() => Hooks.UnHook();
-    
-    public static void TryCreatePortal(Player player, int id)
-    {
-        if (!PortalDict.ContainsKey(player))
-            PortalDict.Add(player, new PortalPair(player));
-        
-        PortalDict[player].SetPortal(id, player.room);
-    }
 
 
     public static BepInEx.Logging.ManualLogSource Log { get; private set; }

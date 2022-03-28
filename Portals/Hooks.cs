@@ -1,7 +1,7 @@
-﻿using Mono.Cecil.Cil;
+﻿using System;
+using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using RWCustom;
-using UnityEngine;
 
 namespace Portals;
 
@@ -9,6 +9,7 @@ public static class Hooks
 {
     public static void Hook()
     {
+        On.Player.ctor += Player_ctor;
         On.Player.Update += Player_Update;
         IL.BodyChunk.CheckHorizontalCollision += BodyChunk_CheckHorizontalCollision;
         IL.BodyChunk.CheckVerticalCollision += BodyChunk_CheckVerticalCollision;
@@ -16,21 +17,26 @@ public static class Hooks
 
     public static void UnHook()
     {
+        On.Player.ctor -= Player_ctor;
         On.Player.Update -= Player_Update;
         IL.BodyChunk.CheckHorizontalCollision -= BodyChunk_CheckHorizontalCollision;
         IL.BodyChunk.CheckVerticalCollision -= BodyChunk_CheckVerticalCollision;
     }
-    
+
+    private static void Player_ctor(On.Player.orig_ctor orig, Player self, AbstractCreature abstractcreature, World world)
+    {
+        orig(self, abstractcreature, world);
+        
+        if (!PortalPlugin.PortalDict.ContainsKey(self))
+            PortalPlugin.PortalDict.Add(self, new PortalPair(self));
+    }
+
     private static void Player_Update(On.Player.orig_Update orig, Player self, bool eu)
     {
         orig(self, eu);
-
-        if (Input.GetKeyDown(KeyCode.D))
-            PortalPlugin.TryCreatePortal(self, 0);
-        else if (Input.GetKeyDown(KeyCode.F))
-            PortalPlugin.TryCreatePortal(self, 1);
+        PortalPlugin.PortalDict[self].Update();
     }
-    
+
     private static void BodyChunk_CheckHorizontalCollision(ILContext il)
     {
         try
@@ -38,12 +44,13 @@ public static class Hooks
             PortalPlugin.Log.LogInfo("BodyChunk_CheckHorizontalCollision il edit 0/2");
             ILCursor c = new ILCursor(il);
             ILLabel branch = null;
+            int matchIndex = 0;
             
             bool done = false;
             while (!done)
             {
                 c.GotoNext(x => x.MatchLdarg(0));
-                c.Index++;
+                matchIndex = c.Index++;
                 if (!c.Next.MatchCallvirt<BodyChunk>("get_owner")) continue;
                 c.Index++;
                 if (!c.Next.MatchLdfld<UpdatableAndDeletable>("room")) continue;
@@ -59,12 +66,11 @@ public static class Hooks
                 if (!c.Next.MatchLdcI4(out _)) continue;
                 c.Index++;
                 if (!c.Next.MatchBneUn(out branch)) continue;
-                c.Index++;
                 
                 done = true;
             }
 
-            c.Emit(OpCodes.Br, branch);
+            EmitPortalCheck(c, matchIndex, branch);
             PortalPlugin.Log.LogInfo("BodyChunk_CheckHorizontalCollision il edit 1/2");
 
             c.Index = 0;
@@ -73,7 +79,7 @@ public static class Hooks
             while (!done)
             {
                 c.GotoNext(x => x.MatchLdarg(0));
-                c.Index++;
+                matchIndex = c.Index++;
                 if (!c.Next.MatchCallvirt<BodyChunk>("get_owner")) continue;
                 c.Index++;
                 if (!c.Next.MatchLdfld<UpdatableAndDeletable>("room")) continue;
@@ -89,15 +95,14 @@ public static class Hooks
                 if (!c.Next.MatchLdcI4(out _)) continue;
                 c.Index++;
                 if (!c.Next.MatchBneUn(out branch)) continue;
-                c.Index++;
                 
                 done = true;
             }
 
-            c.Emit(OpCodes.Br, branch);
+            EmitPortalCheck(c, matchIndex, branch);
             PortalPlugin.Log.LogInfo("BodyChunk_CheckHorizontalCollision il edit 2/2");
         }
-        catch (System.Exception e)
+        catch (Exception e)
         {
             PortalPlugin.Log.LogError(e);
         }
@@ -110,12 +115,13 @@ public static class Hooks
             PortalPlugin.Log.LogInfo("BodyChunk_CheckVerticalCollision il edit 0/2");
             ILCursor c = new ILCursor(il);
             ILLabel branch = null;
+            int indexToEdit = 0;
             
             bool done = false;
             while (!done)
             {
                 c.GotoNext(x => x.MatchLdarg(0));
-                c.Index++;
+                indexToEdit = c.Index++;
                 if (!c.Next.MatchCallvirt<BodyChunk>("get_owner")) continue;
                 c.Index++;
                 if (!c.Next.MatchLdfld<UpdatableAndDeletable>("room")) continue;
@@ -131,12 +137,11 @@ public static class Hooks
                 if (!c.Next.MatchLdcI4(out _)) continue;
                 c.Index++;
                 if (!c.Next.MatchBneUn(out branch)) continue;
-                c.Index++;
                 
                 done = true;
             }
             
-            c.Emit(OpCodes.Br, branch);
+            EmitPortalCheck(c, indexToEdit, branch);
             PortalPlugin.Log.LogInfo("BodyChunk_CheckVerticalCollision il edit 1/2");
             
             c.Index = 0;
@@ -145,7 +150,7 @@ public static class Hooks
             while (!done)
             {
                 c.GotoNext(x => x.MatchLdarg(0));
-                c.Index++;
+                indexToEdit = c.Index++;
                 if (!c.Next.MatchLdloc(15)) continue;
                 c.Index++;
                 if (!c.Next.MatchLdloc(14)) continue;
@@ -153,18 +158,41 @@ public static class Hooks
                 if (!c.Next.MatchCallvirt<BodyChunk>("SolidFloor")) continue;
                 c.Index++;
                 if (!c.Next.MatchBrfalse(out branch)) continue;
-                c.Index++;
 
                 done = true;
             }
 
-            c.Emit(OpCodes.Br, branch);
+            EmitPortalCheck(c, indexToEdit, branch);
             PortalPlugin.Log.LogInfo("BodyChunk_CheckVerticalCollision il edit 2/2");
         }
-        catch (System.Exception e)
+        catch (Exception e)
         {
             PortalPlugin.Log.LogError(e);
         }
+    }
+
+    private static void EmitPortalCheck(ILCursor c, int beforeIndex, ILLabel branch)
+    {
+        c.Index = beforeIndex + 1;
+        
+        c.EmitDelegate<Func<BodyChunk, bool>>(bc =>
+        {
+            foreach (PortalPair pp in PortalPlugin.PortalDict.Values)
+            {
+                foreach (IntVector2 tile in pp.A.portalTileCoords)
+                    if (tile == bc?.owner?.room?.GetTilePosition(bc.pos))
+                        return true;
+
+                foreach (IntVector2 tile in pp.B.portalTileCoords)
+                    if (tile == bc?.owner?.room?.GetTilePosition(bc.pos))
+                        return true;
+            }
+
+            return false;
+        });
+        c.Emit(OpCodes.Brtrue, branch);
+        
+        c.Emit(OpCodes.Ldarg_0);
     }
 
     private static void MovePhysicalObject(PhysicalObject obj, IntVector2 tilePos)
