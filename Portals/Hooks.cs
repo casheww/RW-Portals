@@ -43,18 +43,12 @@ public static class Hooks
     {
         orig(self, eu);
         
-        foreach (BodyChunk bc in self.bodyChunks)
+        foreach (PortalPair pp in PortalPlugin.PortalDict.Values)
         {
-            if (bc?.owner?.room == null)
-                continue;
-
-            foreach (PortalPair pp in PortalPlugin.PortalDict.Values)
+            if (pp.CheckInPortals(self, out int fromPortalIndex))
             {
-                if (pp.CheckInPortals(bc, out int fromPortalIndex))
-                {
-                    pp.Teleport(self, fromPortalIndex);
-                    return;
-                }
+                pp.Teleport(self, fromPortalIndex);
+                return;
             }
         }
     }

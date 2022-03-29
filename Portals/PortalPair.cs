@@ -1,4 +1,5 @@
-﻿using RWCustom;
+﻿using System.Collections.Generic;
+using RWCustom;
 using UnityEngine;
 
 namespace Portals;
@@ -14,6 +15,7 @@ public class PortalPair
             new Portal(0),
             new Portal(1)
         };
+        _noTeleportList = new List<PhysicalObject>();
     }
 
     public void Update()
@@ -25,12 +27,15 @@ public class PortalPair
             A.ClearFromRoom();
             B.ClearFromRoom();
             _playerLastRoom = player.room;
+            _noTeleportList.Clear();
         }
         
         if (Input.GetKeyDown(KeyCode.D))
             SetPortal(0);
         else if (Input.GetKeyDown(KeyCode.F))
             SetPortal(1);
+
+        _noTeleportList.RemoveAll(obj => !CheckInPortals(obj, out _));
     }
     
     private void SetPortal(int id)
@@ -92,7 +97,22 @@ public class PortalPair
         return throwDir;
     }
 
-    public bool CheckInPortals(BodyChunk bc, out int id)
+    public bool CheckInPortals(PhysicalObject obj, out int id)
+    {
+        foreach (BodyChunk bc in obj.bodyChunks)
+        {
+            if (bc?.owner?.room == null)
+                continue;
+
+            if (CheckInPortals(bc, out id))
+                return true;
+        }
+
+        id = -1;
+        return false;
+    }
+
+    private bool CheckInPortals(BodyChunk bc, out int id)
     {
         for (int i = 0; i < _portals.Length; i++)
         {
@@ -110,6 +130,8 @@ public class PortalPair
 
     public void Teleport(PhysicalObject obj, int fromPortalIndex)
     {
+        if (_noTeleportList.Contains(obj)) return;
+        
         Portal fromPortal = _portals[fromPortalIndex];
         Portal toPortal = _portals[fromPortalIndex == 0 ? 1 : 0];
 
@@ -117,6 +139,8 @@ public class PortalPair
 
         foreach (BodyChunk bc in obj.bodyChunks)
             TeleportChunk(bc, fromPortal, toPortal);
+
+        _noTeleportList.Add(obj);
     }
 
     private void TeleportChunk(BodyChunk bc, Portal fromPortal, Portal toPortal)
@@ -138,6 +162,8 @@ public class PortalPair
     public readonly Player player;
     private Room _playerLastRoom;
     private readonly Portal[] _portals;
+
+    private List<PhysicalObject> _noTeleportList; 
 
     public Portal A => _portals[0];
     public Portal B => _portals[1];
