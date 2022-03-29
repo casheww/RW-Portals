@@ -22,6 +22,13 @@ public class Portal : CosmeticSprite
         
         RestoreTiles();
         room.RemoveObject(this);
+
+        for (int i = 0; i < portalHeight; i++)
+        {
+            portalTileCoords[i] = new IntVector2(-1, -1);
+            _displacedTiles[i] = null;
+        }
+
         hide = true;
     }
 
@@ -31,6 +38,7 @@ public class Portal : CosmeticSprite
         newRoom.AddObject(this);
         
         TilePos = tilePos;
+        pos = newRoom.MiddleOfTile(tilePos);
         Dir = dir;
 
         IntVector2 perp = Custom.PerpIntVec(dir);
@@ -48,10 +56,6 @@ public class Portal : CosmeticSprite
         for (int i = 0; i < portalHeight; i++)
         {
             IntVector2 coords = portalTileCoords[i];
-            
-            PortalPlugin.Log.LogInfo(room == null);
-            PortalPlugin.Log.LogInfo(room.Tiles == null);
-
             room.Tiles[coords.x, coords.y] = _displacedTiles[i];
         }
     }

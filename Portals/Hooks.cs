@@ -11,6 +11,7 @@ public static class Hooks
     {
         On.Player.ctor += Player_ctor;
         On.Player.Update += Player_Update;
+        On.PhysicalObject.Update += PhysicalObject_Update;
         IL.BodyChunk.CheckHorizontalCollision += BodyChunk_CheckHorizontalCollision;
         IL.BodyChunk.CheckVerticalCollision += BodyChunk_CheckVerticalCollision;
     }
@@ -19,6 +20,7 @@ public static class Hooks
     {
         On.Player.ctor -= Player_ctor;
         On.Player.Update -= Player_Update;
+        On.PhysicalObject.Update -= PhysicalObject_Update;
         IL.BodyChunk.CheckHorizontalCollision -= BodyChunk_CheckHorizontalCollision;
         IL.BodyChunk.CheckVerticalCollision -= BodyChunk_CheckVerticalCollision;
     }
@@ -35,24 +37,24 @@ public static class Hooks
     {
         orig(self, eu);
         PortalPlugin.PortalDict[self].Update();
-
+    }
+    
+    private static void PhysicalObject_Update(On.PhysicalObject.orig_Update orig, PhysicalObject self, bool eu)
+    {
+        orig(self, eu);
+        
         foreach (BodyChunk bc in self.bodyChunks)
         {
+            if (bc?.owner?.room == null)
+                continue;
+
             foreach (PortalPair pp in PortalPlugin.PortalDict.Values)
             {
-                foreach (IntVector2 tile in pp.A.portalTileCoords)
-                    if (tile == bc?.owner?.room?.GetTilePosition(bc.pos))
-                    { 
-                        MovePhysicalObject(self, pp.B.TilePos);
-                        return;
-                    }
-
-                foreach (IntVector2 tile in pp.B.portalTileCoords)
-                    if (tile == bc?.owner?.room?.GetTilePosition(bc.pos))
-                    {
-                        MovePhysicalObject(self, pp.A.TilePos);
-                        return;
-                    }
+                if (pp.CheckInPortals(bc, out int fromPortalIndex))
+                {
+                    pp.Teleport(self, fromPortalIndex);
+                    return;
+                }
             }
         }
     }
@@ -213,17 +215,6 @@ public static class Hooks
         c.Emit(OpCodes.Brtrue, branch);
         
         c.Emit(OpCodes.Ldarg_0);
-    }
-
-    private static void MovePhysicalObject(PhysicalObject obj, IntVector2 tilePos)
-    {
-        foreach (BodyChunk bc in obj.bodyChunks)
-            bc.HardSetPosition(tilePos.ToVector2() * 20f);
-        
-        if (obj is Creature creature)
-            foreach (Creature.Grasp grasp in creature.grasps)
-                if (grasp != null)
-                    MovePhysicalObject(grasp.grabbed, tilePos);
     }
 
 }

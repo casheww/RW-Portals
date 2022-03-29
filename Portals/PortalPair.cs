@@ -8,7 +8,7 @@ public class PortalPair
     public PortalPair(Player player)
     {
         this.player = player;
-        playerLastRoom = player.room;
+        _playerLastRoom = player.room;
         _portals = new []
         {
             new Portal(0),
@@ -20,11 +20,11 @@ public class PortalPair
     {
         if (player.room == null) return;
         
-        if (player.room != playerLastRoom)
+        if (player.room != _playerLastRoom)
         {
             A.ClearFromRoom();
             B.ClearFromRoom();
-            playerLastRoom = player.room;
+            _playerLastRoom = player.room;
         }
         
         if (Input.GetKeyDown(KeyCode.D))
@@ -33,14 +33,14 @@ public class PortalPair
             SetPortal(1);
     }
     
-    public void SetPortal(int id)
+    private void SetPortal(int id)
     {
         if (!TryShootPortal(player, out IntVector2 tilePos, out IntVector2 dir))
             return;
         
         _portals[id].SetPos(player.room, tilePos, dir);
 
-        PortalPlugin.Log.LogInfo($"set portal for {player.playerState.playerNumber}:{id} at {tilePos}");
+        PortalPlugin.Log.LogInfo($"set portal {player.playerState.playerNumber}:{id} at {tilePos}");
     }
     
     private static bool TryShootPortal(Player player, out IntVector2 pos, out IntVector2 dirIntoPortal)
@@ -92,8 +92,51 @@ public class PortalPair
         return throwDir;
     }
 
+    public bool CheckInPortals(BodyChunk bc, out int id)
+    {
+        for (int i = 0; i < _portals.Length; i++)
+        {
+            foreach (IntVector2 tile in _portals[i].portalTileCoords)
+                if (tile == bc.owner.room.GetTilePosition(bc.pos))
+                {
+                    id = i;
+                    return true;
+                }
+        }
+
+        id = -1;
+        return false;
+    }
+
+    public void Teleport(PhysicalObject obj, int fromPortalIndex)
+    {
+        Portal fromPortal = _portals[fromPortalIndex];
+        Portal toPortal = _portals[fromPortalIndex == 0 ? 1 : 0];
+
+        if (toPortal.room == null) return;
+
+        foreach (BodyChunk bc in obj.bodyChunks)
+            TeleportChunk(bc, fromPortal, toPortal);
+    }
+
+    private void TeleportChunk(BodyChunk bc, Portal fromPortal, Portal toPortal)
+    {
+        Vector2 fromOrientation = Custom.PerpendicularVector(fromPortal.Dir.ToVector2());
+        Vector2 toOrientation = Custom.PerpendicularVector(toPortal.Dir.ToVector2());
+        float portalRotation = Custom.Angle(fromOrientation, toOrientation);
+        
+        float transmissionAngle = -Custom.Angle(fromPortal.Dir.ToVector2(), bc.vel);       // relative to toPortal
+        transmissionAngle += portalRotation;            // relative to fromPortal
+
+        bc.vel = Custom.RotateAroundOrigo(bc.vel, transmissionAngle);
+        PortalPlugin.Log.LogInfo($"vel : {bc.vel}");
+        var a = toPortal.pos;
+        PortalPlugin.Log.LogInfo(a);
+        bc.setPos = a;
+    }
+
     public readonly Player player;
-    private Room playerLastRoom;
+    private Room _playerLastRoom;
     private readonly Portal[] _portals;
 
     public Portal A => _portals[0];
