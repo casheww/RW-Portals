@@ -40,7 +40,7 @@ public class PortalPair
     
     private void SetPortal(int id)
     {
-        if (!TryShootPortal(player, out IntVector2 tilePos, out IntVector2 dir))
+        if (!TryShootPortal(out IntVector2 tilePos, out IntVector2 dir))
             return;
         
         _portals[id].SetPos(player.room, tilePos, dir);
@@ -48,7 +48,7 @@ public class PortalPair
         PortalPlugin.Log.LogInfo($"set portal {player.playerState.playerNumber}:{id} at {tilePos}");
     }
     
-    private static bool TryShootPortal(Player player, out IntVector2 pos, out IntVector2 dirIntoPortal)
+    private bool TryShootPortal(out IntVector2 pos, out IntVector2 dirIntoPortal)
     {
         pos = player.room.GetTilePosition(player.firstChunk.pos);
         IntVector2 dir = GetThrowDirection(player);
@@ -57,6 +57,17 @@ public class PortalPair
         while (player.room.IsPositionInsideBoundries(pos))
         {
             pos += dir;
+            
+            foreach (PortalPair pp in PortalPlugin.PortalDict.Values)
+            {
+                if (pp.CheckInPortals(pos, out int existingPortal))
+                {
+                    _portals[existingPortal].ClearFromRoom();
+                    
+                    dirIntoPortal = dir;
+                    return true;
+                }
+            }
 
             if (player.room.GetTile(pos).Solid)
             {
@@ -113,11 +124,14 @@ public class PortalPair
     }
 
     private bool CheckInPortals(BodyChunk bc, out int id)
+        => CheckInPortals(bc.owner.room.GetTilePosition(bc.pos), out id);
+
+    private bool CheckInPortals(IntVector2 pos, out int id)
     {
         for (int i = 0; i < _portals.Length; i++)
         {
             foreach (IntVector2 tile in _portals[i].portalTileCoords)
-                if (tile == bc.owner.room.GetTilePosition(bc.pos))
+                if (tile == pos)
                 {
                     id = i;
                     return true;
@@ -147,16 +161,17 @@ public class PortalPair
     {
         Vector2 fromOrientation = Custom.PerpendicularVector(fromPortal.Dir.ToVector2());
         Vector2 toOrientation = Custom.PerpendicularVector(toPortal.Dir.ToVector2());
-        float portalRotation = Custom.Angle(fromOrientation, toOrientation);
         
-        float transmissionAngle = -Custom.Angle(fromPortal.Dir.ToVector2(), bc.vel);       // relative to toPortal
-        transmissionAngle += portalRotation;            // relative to fromPortal
+        float portalRotation = Custom.Angle(fromOrientation, toOrientation);
+        float transmissionAngle = -Custom.Angle(fromPortal.Dir.ToVector2(), bc.vel);
+        transmissionAngle += portalRotation - 180f;
 
+        PortalPlugin.Log.LogInfo($"vel before : {bc.vel} :::   angle : {transmissionAngle}");
         bc.vel = Custom.RotateAroundOrigo(bc.vel, transmissionAngle);
-        PortalPlugin.Log.LogInfo($"vel : {bc.vel}");
+        PortalPlugin.Log.LogInfo($"vel after  : {bc.vel}");
         var a = toPortal.pos;
         PortalPlugin.Log.LogInfo(a);
-        bc.setPos = a;
+        bc.HardSetPosition(a);
     }
 
     public readonly Player player;
